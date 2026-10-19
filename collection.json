@@ -1,0 +1,1801 @@
+{
+  "info": {
+    "_postman_id": "23cd72ad-6abf-45ec-ae3c-6843dfedd9fc",
+    "name": "Greenwheels Billing Cycle - Senior QA Suite",
+    "description": "CI-runnable Postman v2.1 suite. Exact schemas/status codes must be reconciled with the separately supplied stub. Seeded fixture IDs are provided through environment variables.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "invoice_id",
+      "value": ""
+    },
+    {
+      "key": "base_amount",
+      "value": "0"
+    },
+    {
+      "key": "first_payment_id",
+      "value": ""
+    },
+    {
+      "key": "discounted_amount",
+      "value": "0"
+    }
+  ],
+  "item": [
+    {
+      "name": "00 - Setup and Happy Path",
+      "description": "Run first. Establishes shared dynamic data and validates all five endpoints.",
+      "item": [
+        {
+          "name": "Create active-driver cycle for shared tests",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "Creates an invoice and stores invoice_id/base_amount for later requests.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"week_number\": 42,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body = pm.response.json();",
+                  "pm.test('Cycle response schema', function () {",
+                  "  pm.expect(body).to.have.property('invoice_id').that.is.a('string').and.not.empty;",
+                  "  pm.expect(body).to.have.property('amount_due').that.is.a('number').and.at.least(0);",
+                  "  pm.expect(body).to.have.property('currency','KES');",
+                  "  pm.expect(body).to.have.property('due_date').that.is.a('string');",
+                  "  pm.expect(Number.isNaN(Date.parse(body.due_date))).to.eql(false);",
+                  "});",
+                  "pm.collectionVariables.set('invoice_id', body.invoice_id);",
+                  "pm.collectionVariables.set('base_amount', String(body.amount_due));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "01 - Happy Paths - All Endpoints",
+      "item": [
+        {
+          "name": "POST cycle - active lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{happy_driver_id}}\",\n  \"week_number\": 43,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body = pm.response.json();",
+                  "pm.test('Cycle response schema', function () {",
+                  "  pm.expect(body).to.have.property('invoice_id').that.is.a('string').and.not.empty;",
+                  "  pm.expect(body).to.have.property('amount_due').that.is.a('number').and.at.least(0);",
+                  "  pm.expect(body).to.have.property('currency','KES');",
+                  "  pm.expect(body).to.have.property('due_date').that.is.a('string');",
+                  "  pm.expect(Number.isNaN(Date.parse(body.due_date))).to.eql(false);",
+                  "});",
+                  "pm.collectionVariables.set('invoice_id', body.invoice_id);",
+                  "pm.collectionVariables.set('base_amount', String(body.amount_due));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST payment - valid KES payment",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"amount\": 1000,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"happy-{{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Payment acknowledgement structure', function () {",
+                  "  pm.expect(body.payment_reference || body.reference).to.be.a('string').and.not.empty;",
+                  "  if (body.currency !== undefined) pm.expect(body.currency).to.eql('KES');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET cycles - returns supported statuses",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles/{{driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles",
+                "{{driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json(); const cycles=Array.isArray(body)?body:body.cycles;",
+                  "pm.test('Cycle list and supported status values', function () {",
+                  "  pm.expect(cycles).to.be.an('array');",
+                  "  cycles.forEach(c => pm.expect(['pending','paid','overdue','disputed']).to.include(c.status));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST discount - valid next-cycle discount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/discounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "discounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{discount_driver_id}}\",\n  \"amount\": 100,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200 or 201', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Discount acknowledgement', function () {",
+                  "  pm.expect(body.driver_id || pm.variables.replaceIn('{{discount_driver_id}}')).to.eql(pm.variables.replaceIn('{{discount_driver_id}}'));",
+                  "  pm.expect(body.amount !== undefined ? body.amount : body.discount_amount).to.eql(100);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET summary - aggregate fields reconcile",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/summary/{{driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "summary",
+                "{{driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json();",
+                  "pm.test('Summary schema', function () {",
+                  "  ['total_billed','total_paid','total_outstanding','missed_payment_count'].forEach(k => pm.expect(body).to.have.property(k));",
+                  "  pm.expect(body.total_billed).to.be.a('number');",
+                  "  pm.expect(body.total_paid).to.be.a('number');",
+                  "  pm.expect(body.total_outstanding).to.be.a('number');",
+                  "  pm.expect(body.missed_payment_count).to.be.a('number').and.at.least(0);",
+                  "});",
+                  "pm.test('Outstanding equals billed minus paid', () => pm.expect(body.total_outstanding).to.eql(body.total_billed-body.total_paid));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BR-01 - Paused and Terminated Leases",
+      "item": [
+        {
+          "name": "BR-01 - Reject cycle for paused lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{paused_driver_id}}\",\n  \"week_number\": 42,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Inactive lease is rejected', () => pm.expect([400,403,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('No invoice is returned', () => pm.expect(body).not.to.have.property('invoice_id'));",
+                  "pm.test('Error body identifies lease/state conflict', function () {",
+                  "  const text=JSON.stringify(body).toLowerCase();",
+                  "  pm.expect(text.includes('lease') || text.includes('paused') || text.includes('terminated') || text.includes('state')).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-01 - Reject cycle for terminated lease",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{terminated_driver_id}}\",\n  \"week_number\": 42,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Inactive lease is rejected', () => pm.expect([400,403,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('No invoice is returned', () => pm.expect(body).not.to.have.property('invoice_id'));",
+                  "pm.test('Error body identifies lease/state conflict', function () {",
+                  "  const text=JSON.stringify(body).toLowerCase();",
+                  "  pm.expect(text.includes('lease') || text.includes('paused') || text.includes('terminated') || text.includes('state')).to.eql(true);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BR-02 - Payment Idempotency",
+      "item": [
+        {
+          "name": "BR-02A - Submit payment first time",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{idempotency_invoice_id}}\",\n  \"amount\": 1000,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"qa-idem-fixed-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('First payment is accepted', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.collectionVariables.set('first_payment_id', body.payment_id || body.id || 'not-returned');"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-02B - Repeat identical payment reference",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{idempotency_invoice_id}}\",\n  \"amount\": 1000,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"qa-idem-fixed-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Duplicate follows documented idempotent outcome', () => pm.expect([200,201,409]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Duplicate does not produce a different accepted payment ID', function () {",
+                  "  const first=pm.collectionVariables.get('first_payment_id');",
+                  "  const current=body.payment_id || body.id || 'not-returned';",
+                  "  if (pm.response.code !== 409 && first !== 'not-returned') pm.expect(current).to.eql(first);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-02C - Summary confirms one credit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/summary/{{idempotency_driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "summary",
+                "{{idempotency_driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json();",
+                  "pm.test('Idempotency fixture total paid increased exactly once', function () {",
+                  "  pm.expect(body.total_paid).to.eql(Number(pm.environment.get('idempotency_expected_total_paid')));",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-02D - Same reference with conflicting amount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{idempotency_invoice_id}}\",\n  \"amount\": 999,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"qa-idem-fixed-001\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Conflicting idempotency-key reuse is rejected', () => pm.expect([400,409,422]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BR-03 - Consecutive Missed Payments",
+      "item": [
+        {
+          "name": "BR-03A - Two misses are not automatically overdue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/summary/{{two_missed_driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "summary",
+                "{{two_missed_driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json();",
+                  "pm.test('Fixture has two misses', () => pm.expect(body.missed_payment_count).to.eql(2));",
+                  "pm.test('Two misses are not overdue', () => pm.expect(body.overdue === true || body.status === 'overdue').to.eql(false));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-03B - Three consecutive misses are overdue",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/summary/{{three_missed_driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "summary",
+                "{{three_missed_driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json();",
+                  "pm.test('Fixture has at least three misses', () => pm.expect(body.missed_payment_count).to.be.at.least(3));",
+                  "pm.test('Overdue flag/status is set', () => pm.expect(body.overdue === true || body.status === 'overdue').to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-03C - Non-consecutive misses do not trigger rule",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/summary/{{nonconsecutive_missed_driver_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "summary",
+                "{{nonconsecutive_missed_driver_id}}"
+              ]
+            },
+            "description": ""
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const body=pm.response.json();",
+                  "pm.test('Three total but non-consecutive misses are not overdue', () => pm.expect(body.overdue === true || body.status === 'overdue').to.eql(false));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BR-04 - Discount Next Cycle Only",
+      "item": [
+        {
+          "name": "BR-04A - Apply first discount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/discounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "discounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{discount_driver_id}}\",\n  \"amount\": 100,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('First discount is accepted', () => pm.expect([200,201]).to.include(pm.response.code));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-04B - Second discount cannot stack",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/discounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "discounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{discount_driver_id}}\",\n  \"amount\": 200,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Second discount has a documented non-stacking outcome', () => pm.expect([200,201,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Stacked amount 300 is never returned', () => pm.expect(body.amount || body.discount_amount || 0).not.to.eql(300));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-04C - Generate immediately following cycle",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{discount_driver_id}}\",\n  \"week_number\": 43,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Discounted cycle is created', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Cycle contains a numeric amount', () => pm.expect(body.amount_due).to.be.a('number').and.at.least(0));",
+                  "pm.collectionVariables.set('discounted_amount', String(body.amount_due));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-04D - Generate subsequent cycle with no carryover",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{discount_driver_id}}\",\n  \"week_number\": 44,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Following cycle is created', () => pm.expect([200,201]).to.include(pm.response.code));",
+                  "const body=pm.response.json(); const discounted=Number(pm.collectionVariables.get('discounted_amount'));",
+                  "pm.test('Discount does not carry to a second cycle', () => pm.expect(body.amount_due).to.be.above(discounted));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "BR-05 - KES Validation on Every Write",
+      "item": [
+        {
+          "name": "BR-05 - Reject non-KES cycle write",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"week_number\": 45,\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Non-KES write is rejected', () => pm.expect([400,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Error identifies currency validation', () => pm.expect(JSON.stringify(body).toLowerCase()).to.include('currency'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-05 - Reject non-KES payment write",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"amount\": 1000,\n  \"currency\": \"USD\",\n  \"payment_reference\": \"bad-currency-{{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Non-KES write is rejected', () => pm.expect([400,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Error identifies currency validation', () => pm.expect(JSON.stringify(body).toLowerCase()).to.include('currency'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "BR-05 - Reject non-KES discount write",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/discounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "discounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"amount\": 100,\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Non-KES write is rejected', () => pm.expect([400,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Error identifies currency validation', () => pm.expect(JSON.stringify(body).toLowerCase()).to.include('currency'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "06 - Negative and Edge Cases",
+      "item": [
+        {
+          "name": "NEG-01 - Missing driver_id",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"week_number\": 42,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-02 - Week number zero",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"week_number\": 0,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-03 - Week number 54",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"week_number\": 54,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-04 - Unknown invoice",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"invoice-does-not-exist\",\n  \"amount\": 1000,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"unknown-{{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-05 - Negative payment amount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"amount\": -1,\n  \"currency\": \"KES\",\n  \"payment_reference\": \"negative-{{$timestamp}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-06 - Missing payment_reference",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/payments",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "payments"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"invoice_id\": \"{{invoice_id}}\",\n  \"amount\": 1000,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-07 - Negative discount",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{auth_token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/discounts",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "discounts"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"amount\": -100,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([400,401,403,404,409,422]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "NEG-08 - Missing authentication",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/billing/cycles",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "billing",
+                "cycles"
+              ]
+            },
+            "description": "",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"driver_id\": \"{{driver_id}}\",\n  \"week_number\": 46,\n  \"currency\": \"KES\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Response completes within 5 seconds', function () {",
+                  "  pm.expect(pm.response.responseTime).to.be.below(5000);",
+                  "});",
+                  "pm.test('Response has JSON content type', function () {",
+                  "  pm.expect(pm.response.headers.get('Content-Type') || '').to.include('application/json');",
+                  "});",
+                  "",
+                  "pm.test('Request is rejected', () => pm.expect([401,403]).to.include(pm.response.code));",
+                  "const body=pm.response.json();",
+                  "pm.test('Structured error response', () => pm.expect(body.error || body.message || body.detail).to.exist);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

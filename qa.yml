@@ -1,0 +1,168 @@
+name: Greenwheels Billing API QA
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: billing-api-qa-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  newman-api-tests:
+    name: Newman API regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      BASE_URL: http://localhost:8000
+      COMPOSE_FILE: docker-compose.yml
+      NEWMAN_REPORT: newman-results.xml
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Verify required test files
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f "$COMPOSE_FILE"
+          test -f postman/collection.json
+          test -f postman/env.json
+
+      - name: Start billing stub service
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose -f "$COMPOSE_FILE" up -d --build
+
+      - name: Wait for service with five-second request timeout
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          for attempt in $(seq 1 30); do
+            if curl \
+              --silent \
+              --show-error \
+              --fail \
+              --max-time 5 \
+              "$BASE_URL/health" > /dev/null 2>&1; then
+              echo "Billing service is responding."
+              exit 0
+            fi
+
+            echo "Health check attempt $attempt of 30 did not succeed."
+            sleep 1
+          done
+
+          echo "Billing service did not become healthy."
+          docker compose -f "$COMPOSE_FILE" ps
+          docker compose -f "$COMPOSE_FILE" logs --no-color
+          exit 1
+
+      - name: Install Newman and JUnit reporter
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm install --global newman newman-reporter-junitfull
+          newman --version
+
+      - name: Run Postman collection with Newman
+        id: newman
+        continue-on-error: true
+        shell: bash
+        env:
+          QA_AUTH_TOKEN: ${{ secrets.QA_AUTH_TOKEN }}
+        run: |
+          set -o pipefail
+
+          newman run postman/collection.json \
+            --environment postman/env.json \
+            --env-var "base_url=$BASE_URL" \
+            --env-var "auth_token=$QA_AUTH_TOKEN" \
+            --timeout-request 5000 \
+            --timeout-script 5000 \
+            --bail failure \
+            --reporters cli,junitfull \
+            --reporter-junitfull-export "$NEWMAN_REPORT"
+
+      - name: Write Newman results to job summary
+        if: always()
+        shell: bash
+        env:
+          NEWMAN_OUTCOME: ${{ steps.newman.outcome }}
+        run: |
+          python - <<'PY'
+          import os
+          import xml.etree.ElementTree as ET
+
+          report = os.environ.get("NEWMAN_REPORT", "newman-results.xml")
+          outcome = os.environ.get("NEWMAN_OUTCOME", "not-run")
+          summary_path = os.environ["GITHUB_STEP_SUMMARY"]
+
+          tests = 0
+          failures = 0
+          errors = 0
+          skipped = 0
+          parse_note = ""
+
+          if os.path.exists(report):
+              try:
+                  root = ET.parse(report).getroot()
+                  suites = [root] if root.tag == "testsuite" else list(root.iter("testsuite"))
+                  tests = sum(int(suite.get("tests", "0")) for suite in suites)
+                  failures = sum(int(suite.get("failures", "0")) for suite in suites)
+                  errors = sum(int(suite.get("errors", "0")) for suite in suites)
+                  skipped = sum(int(suite.get("skipped", "0")) for suite in suites)
+              except (ET.ParseError, ValueError) as exc:
+                  parse_note = f"JUnit report could not be parsed: {exc}"
+          else:
+              parse_note = "JUnit report was not produced."
+
+          failed = failures + errors
+          passed = max(0, tests - failed - skipped)
+
+          with open(summary_path, "a", encoding="utf-8") as summary:
+              summary.write("## Greenwheels Billing API QA\n\n")
+              summary.write(f"- Newman step outcome: **{outcome}**\n")
+              summary.write(f"- Total tests: **{tests}**\n")
+              summary.write(f"- Passed: **{passed}**\n")
+              summary.write(f"- Failed: **{failed}**\n")
+              summary.write(f"- Skipped: **{skipped}**\n")
+              if parse_note:
+                  summary.write(f"- Report note: {parse_note}\n")
+          PY
+
+      - name: Upload Newman JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: greenwheels-newman-junit
+          path: ${{ env.NEWMAN_REPORT }}
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Show service logs when tests fail
+        if: steps.newman.outcome != 'success'
+        shell: bash
+        run: |
+          docker compose -f "$COMPOSE_FILE" ps
+          docker compose -f "$COMPOSE_FILE" logs --no-color
+
+      - name: Fail workflow when Newman fails
+        if: steps.newman.outcome != 'success'
+        shell: bash
+        run: |
+          echo "One or more Newman requests or assertions failed."
+          exit 1
+
+      - name: Stop test services
+        if: always()
+        shell: bash
+        run: |
+          docker compose -f "$COMPOSE_FILE" down --volumes --remove-orphans
